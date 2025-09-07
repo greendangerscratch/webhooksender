@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Webhooksender - Send HTTP Requests!</title>
+    <title>Webhookmessages - Send messages through webhooks!</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
@@ -31,11 +31,17 @@
             <textarea id="messageInput" rows="4" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300" placeholder="Type your message here..."></textarea>
         </div>
 
+        <!-- Image Upload Input -->
+        <div class="mb-4">
+            <label for="imageInput" class="block text-sm font-medium text-gray-700 mb-2">Image (Optional):</label>
+            <input type="file" id="imageInput" accept="image/*" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
+        </div>
+
         <!-- Warning and Agreement Checkbox -->
         <div class="mb-6 flex items-start">
             <input type="checkbox" id="agreeCheckbox" class="mt-1 mr-2 rounded text-indigo-600 focus:ring-indigo-500">
             <label for="agreeCheckbox" class="text-sm font-medium text-red-600">
-                <span class="font-bold">WARNING:</span> Only use this if you have permission to send messages to the provided URL! If not, You may get in trouble by the owner of the server/webhook.
+                <span class="font-bold">WARNING:</span> Only use this if you have permission to send messages to the provided URL.
             </label>
         </div>
 
@@ -52,26 +58,35 @@
     <script>
         const urlInput = document.getElementById('urlInput');
         const messageInput = document.getElementById('messageInput');
+        const imageInput = document.getElementById('imageInput');
         const agreeCheckbox = document.getElementById('agreeCheckbox');
         const sendButton = document.getElementById('sendButton');
         const statusMessage = document.getElementById('statusMessage');
 
         // State variable to manage the cooldown period
         let canSend = true;
-        const cooldownTime = 1000; // 4 seconds in milliseconds
+        const cooldownTime = 4000; // 4 seconds in milliseconds
 
         sendButton.addEventListener('click', async () => {
             const webhookUrl = urlInput.value.trim();
             const message = messageInput.value.trim();
+            const imageFile = imageInput.files[0];
 
             if (!agreeCheckbox.checked) {
-                statusMessage.textContent = '`-` You must agree to the warning before sending!';
+                statusMessage.textContent = 'You must agree to the warning before sending.';
                 statusMessage.className = 'mt-4 text-center text-sm font-medium text-red-600';
                 return;
             }
 
-            if (webhookUrl === '' || message === '') {
-                statusMessage.textContent = 'Please enter both the URL and a message.';
+            if (webhookUrl === '') {
+                statusMessage.textContent = 'Please enter a URL.';
+                statusMessage.className = 'mt-4 text-center text-sm font-medium text-red-600';
+                return;
+            }
+            
+            // Allow sending if either a message or an image is present
+            if (message === '' && !imageFile) {
+                statusMessage.textContent = 'Please enter a message or select an image.';
                 statusMessage.className = 'mt-4 text-center text-sm font-medium text-red-600';
                 return;
             }
@@ -89,21 +104,27 @@
             statusMessage.textContent = 'Sending...';
             statusMessage.className = 'mt-4 text-center text-sm font-medium text-blue-600';
 
+            // Use FormData to prepare the message and image for sending
+            const formData = new FormData();
+            formData.append('content', message);
+
+            // Add the image to the form data if it exists
+            if (imageFile) {
+                formData.append('file', imageFile);
+            }
+
             try {
+                // The 'Content-Type' header is not needed here; the browser sets it automatically for FormData
                 const response = await fetch(webhookUrl, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        content: message
-                    })
+                    body: formData,
                 });
 
                 if (response.ok) {
                     statusMessage.textContent = 'Message sent successfully!';
                     statusMessage.className = 'mt-4 text-center text-sm font-medium text-green-600';
                     messageInput.value = '';
+                    imageInput.value = ''; // Clear the image input
                 } else {
                     const errorText = await response.text();
                     statusMessage.textContent = `Error: ${response.status} - ${errorText || 'Failed to send message.'}`;
@@ -134,4 +155,5 @@
     </script>
 </body>
 </html>
+
 
