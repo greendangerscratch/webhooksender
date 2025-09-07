@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dynamic Webhook Sender</title>
+    <title>Webhooksender - Send HTTP Requests!</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
@@ -35,7 +35,7 @@
         <div class="mb-6 flex items-start">
             <input type="checkbox" id="agreeCheckbox" class="mt-1 mr-2 rounded text-indigo-600 focus:ring-indigo-500">
             <label for="agreeCheckbox" class="text-sm font-medium text-red-600">
-                <span class="font-bold">WARNING:</span> Only use this if you have permission to send messages to the provided URL.
+                <span class="font-bold">WARNING:</span> Only use this if you have permission to send messages to the provided URL! If not, You may get in trouble by the owner of the server/webhook.
             </label>
         </div>
 
@@ -58,14 +58,14 @@
 
         // State variable to manage the cooldown period
         let canSend = true;
-        const cooldownTime = 4000; // 4 seconds in milliseconds
+        const cooldownTime = 1000; // 4 seconds in milliseconds
 
         sendButton.addEventListener('click', async () => {
             const webhookUrl = urlInput.value.trim();
             const message = messageInput.value.trim();
 
             if (!agreeCheckbox.checked) {
-                statusMessage.textContent = 'You must agree to the warning before sending.';
+                statusMessage.textContent = '`-` You must agree to the warning before sending!';
                 statusMessage.className = 'mt-4 text-center text-sm font-medium text-red-600';
                 return;
             }
