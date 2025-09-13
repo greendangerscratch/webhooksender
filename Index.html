@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebhookMessages - Send messages to anything over webhooks!</title>
+    <title>WebhookMessages - Send messages to webhooks!</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
@@ -19,12 +19,24 @@
     <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
         <h1 class="text-3xl font-bold mb-6 text-center text-gray-800">Send a Message</h1>
         
-        <!-- Webhook URL Input -->
-        <div class="mb-4">
-            <label for="urlInput" class="block text-sm font-medium text-gray-700 mb-2">Webhook URL:</label>
-            <input type="url" id="urlInput" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300" placeholder="Enter your webhook URL here...">
+        <!-- URL Inputs Container -->
+        <div id="urlInputsContainer">
+            <!-- Initial URL input, cannot be removed -->
+            <div class="mb-4 url-input-group">
+                <label for="urlInput1" class="block text-sm font-medium text-gray-700 mb-2">Webhook URL 1:</label>
+                <div class="flex items-center">
+                    <input type="url" id="urlInput1" class="url-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300" placeholder="Enter webhook URL here...">
+                </div>
+            </div>
         </div>
 
+        <!-- Add URL Button -->
+        <div class="mb-4">
+            <button id="addUrlBtn" class="w-full bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300 transition duration-300">
+                Add another URL
+            </button>
+        </div>
+        
         <!-- Message Input -->
         <div class="mb-4">
             <label for="messageInput" class="block text-sm font-medium text-gray-700 mb-2">Your Message:</label>
@@ -56,7 +68,8 @@
     </div>
 
     <script>
-        const urlInput = document.getElementById('urlInput');
+        const urlInputsContainer = document.getElementById('urlInputsContainer');
+        const addUrlBtn = document.getElementById('addUrlBtn');
         const messageInput = document.getElementById('messageInput');
         const fileInput = document.getElementById('fileInput');
         const agreeCheckbox = document.getElementById('agreeCheckbox');
@@ -65,10 +78,55 @@
 
         // State variable to manage the cooldown period
         let canSend = true;
-        const cooldownTime = 4000; // 4 seconds in milliseconds
+        const cooldownTime = 1; // 1 millisecond
+
+        function updateLabels() {
+            const urlGroups = document.querySelectorAll('.url-input-group');
+            urlGroups.forEach((group, index) => {
+                const label = group.querySelector('label');
+                const input = group.querySelector('input');
+                const number = index + 1;
+                
+                label.textContent = `Webhook URL ${number}:`;
+                label.setAttribute('for', `urlInput${number}`);
+                input.setAttribute('id', `urlInput${number}`);
+                input.setAttribute('placeholder', `Enter webhook URL here...`);
+            });
+        }
+
+        // Add event listener for the "Add another URL" button
+        addUrlBtn.addEventListener('click', () => {
+            const newInputDiv = document.createElement('div');
+            newInputDiv.className = 'mb-4 flex items-center url-input-group';
+            newInputDiv.innerHTML = `
+                <div class="flex-1">
+                    <label class="block text-sm font-medium text-gray-700 mb-2"></label>
+                    <input type="url" class="url-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300">
+                </div>
+                <button class="remove-url-btn ml-2 bg-red-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-600 transition duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
+                    &times;
+                </button>
+            `;
+            urlInputsContainer.appendChild(newInputDiv);
+            updateLabels(); // Re-number all inputs
+        });
+
+        // Add event listener to the container to handle clicks on dynamically added remove buttons
+        urlInputsContainer.addEventListener('click', (event) => {
+            if (event.target.classList.contains('remove-url-btn')) {
+                const urlGroup = event.target.closest('.url-input-group');
+                if (urlGroup) {
+                    urlInputsContainer.removeChild(urlGroup);
+                    updateLabels(); // Re-number remaining inputs
+                }
+            }
+        });
 
         sendButton.addEventListener('click', async () => {
-            const webhookUrl = urlInput.value.trim();
+            const webhookUrls = Array.from(document.querySelectorAll('.url-input'))
+                                     .map(input => input.value.trim())
+                                     .filter(url => url !== '');
+            
             const message = messageInput.value.trim();
             const file = fileInput.files[0];
 
@@ -78,8 +136,8 @@
                 return;
             }
 
-            if (webhookUrl === '') {
-                statusMessage.textContent = 'Please enter a URL.';
+            if (webhookUrls.length === 0) {
+                statusMessage.textContent = 'Please enter at least one webhook URL.';
                 statusMessage.className = 'mt-4 text-center text-sm font-medium text-red-600';
                 return;
             }
@@ -114,37 +172,44 @@
             }
 
             try {
-                // The 'Content-Type' header is not needed here; the browser sets it automatically for FormData
-                const response = await fetch(webhookUrl, {
-                    method: 'POST',
-                    body: formData,
+                // Create promises for all fetch requests for UNIQUE URLs
+                const requests = webhookUrls.map(url => 
+                    fetch(url, { method: 'POST', body: formData })
+                );
+
+                // Use Promise.allSettled to wait for all requests to complete, regardless of success
+                const results = await Promise.allSettled(requests);
+
+                let allSuccessful = true;
+                let errorMessages = [];
+                results.forEach((result, index) => {
+                    if (result.status === 'fulfilled' && result.value.ok) {
+                        // Success for this URL
+                    } else {
+                        allSuccessful = false;
+                        errorMessages.push(`URL ${index + 1}: Failed to send.`);
+                    }
                 });
 
-                if (response.ok) {
-                    statusMessage.textContent = 'Message sent successfully!';
+                if (allSuccessful) {
+                    let successMessage = `Messages sent successfully to all ${webhookUrls.length} webhooks!`;
+                    statusMessage.textContent = successMessage;
                     statusMessage.className = 'mt-4 text-center text-sm font-medium text-green-600';
                     messageInput.value = '';
-                    fileInput.value = ''; // Clear the file input
+                    fileInput.value = '';
                 } else {
-                    const errorText = await response.text();
-                    statusMessage.textContent = `Error: ${response.status} - ${errorText || 'Failed to send message.'}`;
+                    statusMessage.textContent = `Errors occurred: ${errorMessages.join(' ')}`;
                     statusMessage.className = 'mt-4 text-center text-sm font-medium text-red-600';
                 }
             } catch (error) {
-                if (error instanceof TypeError && error.message === 'Failed to fetch') {
-                    statusMessage.textContent = 'Connection failed. Check your URL and network connection.';
-                    statusMessage.className = 'mt-4 text-center text-sm font-medium text-red-600';
-                } else {
-                    statusMessage.textContent = `Error: ${error.message}`;
-                    statusMessage.className = 'mt-4 text-center text-sm font-medium text-red-600';
-                }
+                statusMessage.textContent = `Connection failed. Check your URLs and network connection. Error: ${error.message}`;
+                statusMessage.className = 'mt-4 text-center text-sm font-medium text-red-600';
                 console.error('Network or other error:', error);
             } finally {
                 // Set a timer to re-enable sending after the cooldown period
                 setTimeout(() => {
                     canSend = true;
                     sendButton.disabled = false;
-                    // Optionally clear the status message after cooldown if no new message is sent
                     if (statusMessage.textContent.includes('wait')) {
                          statusMessage.textContent = '';
                     }
@@ -155,6 +220,3 @@
     </script>
 </body>
 </html>
-
-
-
